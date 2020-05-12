@@ -1,0 +1,24 @@
+{
+    "name": "madison-solutions/adflex",
+    "description": "Helper classes for interacting with the Adflex Payment Gateway",
+    "keywords": ["adflex", "payment-gateway"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Daniel Howard",
+            "email": "dh@madisonsolutions.co.uk"
+        }
+    ],
+    "require": {
+        "php": "^7.2",
+        "firebase/php-jwt": "^5.0",
+        "webmozart/assert": "^1.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "MadisonSolutions\\Adflex\\": "src/"
+        }
+    },
+    "require-dev": {
+    }
+}
