@@ -36,6 +36,10 @@ class PaymentAttempt extends ImmutableBaseObj
      *                    - currency : required, string, 3 char currenct code
      *                    - amount: required, integer, amount of the payment, in the smallest unit of the currency, eg cents or pence
      *                    - description: required, string, description of the payment
+     *                    - offer_to_save: optional, boolean, whether to show a checkbox offering to save the user's card details for next time, default is false
+     *                    - billing_street: optional, string, first line of customer's billing address
+     *                    - billing_postcode: optional, string, postcode of customer's billing address
+     *                    - billing_country_code: optional, string, 3-char country code of customer's billing address
      * @throws InvalidArgumentException If the data is not valid
      */
     public function __construct(array $data)
@@ -45,6 +49,9 @@ class PaymentAttempt extends ImmutableBaseObj
         }
         if (! isset($data['ref'])) {
             $data['ref'] = self::newRandomRef();
+        }
+        if (! isset($data['offer_to_save'])) {
+            $data['offer_to_save'] = false;
         }
         $this->populate($data);
     }
@@ -63,6 +70,7 @@ class PaymentAttempt extends ImmutableBaseObj
             'currency' => $data['currency'] ?? null,
             'amount' => $data['amount'] ?? null,
             'description' => $data['description'] ?? null,
+            'offer_to_save' => $data['offer_to_save'] ?? null,
             'billing_street' => $data['billing_street'] ?? null,
             'billing_postcode' => $data['billing_postcode'] ?? null,
             'billing_country_code' => $data['billing_country_code'] ?? null,
@@ -77,6 +85,7 @@ class PaymentAttempt extends ImmutableBaseObj
         Assert::integer($data['amount']);
         Assert::greaterThan($data['amount'], 0);
         Assert::stringNotEmpty($data['description']);
+        Assert::boolean($data['offer_to_save']);
         Assert::nullOrStringNotEmpty($data['billing_street']);
         Assert::nullOrStringNotEmpty($data['billing_postcode']);
         Assert::nullOrStringNotEmpty($data['billing_country_code']);

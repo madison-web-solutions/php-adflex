@@ -51,6 +51,14 @@ abstract class ImmutableBaseObj implements JsonSerializable, Serializable
     abstract protected function populate(array $data);
 
     /**
+     * Get the object data as an array
+     */
+    public function toArray()
+    {
+        return $this->data;
+    }
+
+    /**
      * Get the data to be used in the JSON serialization of this object
      */
     public function jsonSerialize()

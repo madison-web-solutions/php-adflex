@@ -6,6 +6,11 @@ use Psr\Log\LoggerInterface;
 use Ramsey\Uuid\Uuid;
 use Webmozart\Assert\Assert;
 
+/**
+ * Helper object which provides high-level wrappers for the core payment gateway functionality.
+ * The shop platform should normally create an instance of this class and call it's methods,
+ * rather than interacting directly with the Client object.
+ */
 class Adflex
 {
     /**
@@ -72,7 +77,7 @@ class Adflex
                 'value' => (string) $attempt->amount, // Not a mistake - Adflex really do want the amount as a string - No idea why
             ],
             'tokenLifetime' => [
-                'saveCardOption' => "ShowUnticked",
+                'saveCardOption' => ($attempt->offer_to_save === true ? "ShowUnticked" : "Hide"),
                 'ttlDays' => 90,
             ],
             'description' => $attempt->description,
@@ -119,14 +124,6 @@ class Adflex
         }
 
         $response = $this->client->post('v2/ahpp/session', $payload);
-
-        /* Example response
-            {
-                "sessionID":"sn_T9sPrzjW0g72NlntiKfS",
-                "transactionGUID":"76802db7-f77f-4db4-9d22-a242a9554b3a",
-                "ttlSeconds":14400
-            }
-        */
 
         $session_id =  $response['sessionID'] ?? null;
         if (empty($session_id)) {
@@ -233,12 +230,23 @@ class Adflex
     protected function processCapturePaymentClientException(PaymentAttempt $attempt, ClientException $e) : CaptureResult
     {
         $msg = $e->getMessage();
-        $this->logger->error($msg, ['attempt' => $attempt, 'request' => $e->request, 'response' => $e->response]);
+        $this->logger->warning($msg, ['attempt' => $attempt, 'request' => $e->request, 'response' => $e->response]);
 
+        // Create CaptureResult with error status
         $result = new CaptureResult();
         $result->status = 'error';
         $result->error_msg = $msg;
         $result->payment_taken = 'uncertain';
+
+        // If we recognise the specific code, we can improve the feedback
+        switch ($e->response->sub_code) {
+            case 51404:
+                // Timeout from acquiring bank
+                $result->error_msg = 'The acquiring bank took too long to respond - please try again later.';
+                $result->payment_taken = 'no';
+                break;
+        }
+
         return $result;
     }
 
@@ -251,123 +259,22 @@ class Adflex
      */
     protected function processCapturePaymentResponse(PaymentAttempt $attempt, array $response) : CaptureResult
     {
-        /*
-        Example Authorised response
-        {
-            "statusCode":"Authorised",
-            "amount":{
-                "currency":"GBP",
-                "value":"7500"
-            },
-            "cardDetails":{
-                "tokenType":"Reusable",
-                "token":"B5FD7861-0693-4C1E-89B7-821794098512",
-                "issuer":"UNKNOWN",
-                "scheme":"VISA",
-                "cardType":"CREDIT",
-                "cardLast4Digits":"5556",
-                "schemeCode":"52021",
-                "cscAvsResponse":{
-                    "cscStatus":"Unchecked",
-                    "postCodeStatus":"Unchecked",
-                    "addressStatus":"Unchecked"
-                },
-                "enhancedDataType":"Level1"
-            },
-            "transactionDetails":{
-                "schemeReferenceData":"SRD484080143",
-                "authCode":"75180",
-                "credentialsOnFile":{
-                    "storedPaymentDetailsIndicator":"Na",
-                    "cardAcceptorCardHolderAgreement":"Na",
-                    "initialTransactionGUID":"",
-                    "cofDataRaw":"NNNN"
-                },
-                "threeDSResult":{
-                    "transactionStatus":null,
-                    "dateTime":null,
-                    "authenticationValue":null,
-                    "eci":null,
-                    "xID":null,
-                    "protocolVersion":null,
-                    "serverTransactionID":null,
-                    "veResEnrollmentStatus":null,
-                    "cavvAlgorithm":null
-                },
-                "sessionID":"sn_pk2lhBOfgs5eYMvV3ITW",
-                "messageNumber":"18",
-                "terminalNumber":"22620042",
-                "reference":"AT2005pwfybe",
-                "transactionGUID":"3efdca2f-d2b2-49bb-8bf5-892c50638248",
-                "processedDate":"2020-05-04T10:24:53Z",
-                "merchantNumber":"22048122",
-                "captureMode":"ECOMM"
-            },
-            "additionalFields":[
-                {"name":"cardHolderName","value":"MR DANIEL HOWARD"},
-                {"name":"saveCard","value":"true"}
-            ]
-        }
-
-        Example Declined Response
-        {
-            "statusCode": "Declined",
-            "amount": {
-                "currency": "GBP",
-                "value": "3786"
-            },
-            "cardDetails": {
-                "token": "E13BD5EC-B011-457C-B392-E585C4496C08",
-                "issuer": "UNKNOWN",
-                "scheme": "VISA",
-                "cardType": "CREDIT",
-                "cardLast4Digits": "8889",
-                "schemeCode": "52021",
-                "cscAvsResponse": {
-                    "cscStatus": "Matched",
-                    "postCodeStatus": "Matched",
-                    "addressStatus": "Unchecked"
-                },
-                "enhancedDataType": "NotSet"
-            },
-            "transactionDetails": {
-                "schemeReferenceData": "SRD 113964188",
-                "authCode": "",
-                "credentialsOnFile": {
-                    "storedPaymentDetailsIndicator": "Na",
-                    "cardAcceptorCardHolderAgreement": "Na",
-                    "initialTransactionGUID": "",
-                    "cofDataRaw": "NNNN"
-                },
-                "threeDSResult": {
-                    "transactionStatus": null,
-                    "dateTime": null,
-                    "authenticationValue": null,
-                    "eci": null,
-                    "xID": null,
-                    "protocolVersion": null,
-                    "serverTransactionID": null,
-                    "veResEnrollmentStatus": null,
-                    "cavvAlgorithm": null
-                },
-                "messageNumber": "2",
-                "terminalNumber": "22620042",
-                "reference": "AT1912dqfzen",
-                "transactionGUID": "638ef294-612d-4ad2-8dd4-3b1b41a61fd1",
-                "processedDate": "2019-12-05T08:47:50Z",
-                "merchantNumber": "1111358033202",
-                "captureMode": "ECOMM"
-            },
-            "additionalFields": null
-        }
-        */
-
         $result = new CaptureResult();
 
         // Save the payment method and last 4 digits from the response, if present
-        $result->scheme = mb_convert_case($response['cardDetails']['scheme'], MB_CASE_TITLE);
-        $result->card_type = mb_convert_case($response['cardDetails']['cardType'], MB_CASE_TITLE);
-        $result->last_4_digits = $response['cardDetails']['cardLast4Digits'];
+        $card_details = $response['cardDetails'] ?? [];
+        $result->scheme = mb_convert_case($card_details['scheme'] ?? '', MB_CASE_TITLE);
+        $result->card_type = mb_convert_case($card_details['cardType'] ?? '', MB_CASE_TITLE);
+        $result->last_4_digits = ($card_details['cardLast4Digits'] ?? '');
+
+        // Save the cardholder name, if present
+        $additional_fields = $response['additionalFields'] ?? [];
+        foreach ($additional_fields as $item) {
+            $field_name = ($item['name'] ?? '');
+            if ($field_name == 'cardHolderName') {
+                $result->cardholder_name = ($item['value'] ?? '');
+            }
+        }
 
         // Check the outcome of the payment
         $status_code = $response['statusCode'] ?? 'none';
@@ -382,12 +289,12 @@ class Adflex
             case 'ReferralA':
             case 'MerchantRejected':
                 $result->status = 'declined';
-                $result->error_msg = "The payment was declined";
+                $result->error_msg = "The payment was declined by the card issuer - please try again or try a different card.";
                 $result->payment_taken = 'no';
                 break;
             case 'Cancelled':
                 $result->status = 'cancelled';
-                $result->error_msg = 'The transaction was cancelled';
+                $result->error_msg = 'The transaction was cancelled by the card issuer - please try again or try a different card.';
                 $result->payment_taken = 'no';
                 break;
             case 'CardRegistered':

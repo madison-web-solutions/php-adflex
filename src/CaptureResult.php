@@ -47,6 +47,13 @@ class CaptureResult implements JsonSerializable, Serializable
     public $card_type;
 
     /**
+     * The cardholder name, if known
+     *
+     * @var string
+     */
+    public $cardholder_name;
+
+    /**
      * The card last 4 digits, if known
      *
      * @var string
@@ -79,6 +86,7 @@ class CaptureResult implements JsonSerializable, Serializable
             'payment_taken' => $this->payment_taken,
             'scheme' => $this->scheme,
             'card_type' => $this->card_type,
+            'cardholder_name' => $this->cardholder_name,
             'last_4_digits' => $this->last_4_digits,
             'error_msg' => $this->error_msg,
         ];
@@ -110,6 +118,7 @@ class CaptureResult implements JsonSerializable, Serializable
         $this->payment_taken = $data['payment_taken'];
         $this->scheme = $data['scheme'];
         $this->card_type = $data['card_type'];
+        $this->cardholder_name = $data['cardholder_name'];
         $this->last_4_digits = $data['last_4_digits'];
         $this->error_msg = $data['error_msg'];
     }
